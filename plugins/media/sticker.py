@@ -106,17 +106,14 @@ async def kang_cmd(client, message):
              await fast_status(message, UI.WARN, "Invalid Media", "Reply to a photo or sticker.")
              return
 
-        # Handle Args for emoji
         if len(message.command) > 1:
             emoji = message.command[1]
 
         file_path = await reply.download()
         
-        # Resize Logic
         from PIL import Image
         img = Image.open(file_path)
         
-        # Always resize/convert to ensure validity
         max_size = 512
         if img.width != 512 and img.height != 512:
              ratio = min(max_size / img.width, max_size / img.height)
@@ -126,11 +123,9 @@ async def kang_cmd(client, message):
         kang_path = file_path.rsplit(".", 1)[0] + "_kang.webp"
         img.save(kang_path, "WEBP")
 
-        # Upload to get persistent ID (Send to self)
         sent = await client.send_sticker("me", kang_path)
         sticker_file = sent.sticker
         
-        # Prepare InputDocument
         media = FileId.decode(sticker_file.file_id)
         input_doc = InputDocument(
             id=media.media_id,
@@ -140,14 +135,12 @@ async def kang_cmd(client, message):
         
         item = InputStickerSetItem(document=input_doc, emoji=emoji)
 
-        # Pack Logic
         user = await client.get_me()
         pack_num = 1
         pack_name = f"zeebot_{user.id}_{pack_num}"
         pack_title = f"ZeeBot Pack {pack_num} (@{user.username})"
 
         try:
-            # Try Adding
             await client.invoke(
                 AddStickerToSet(
                     stickerset=InputStickerSetShortName(short_name=pack_name),
@@ -158,7 +151,6 @@ async def kang_cmd(client, message):
         except Exception as e:
              if "STICKERSET_INVALID" in str(e):
                  try:
-                     # Create
                      await client.invoke(
                          CreateStickerSet(
                              user_id=await client.resolve_peer(user.id),
@@ -173,7 +165,6 @@ async def kang_cmd(client, message):
              else:
                  await fast_status(message, UI.FAIL, "Kang Error", f"Add failed: {e}")
 
-        # Cleanup
         if os.path.exists(file_path): os.remove(file_path)
         if os.path.exists(kang_path): os.remove(kang_path)
 

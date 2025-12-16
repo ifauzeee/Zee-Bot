@@ -29,7 +29,7 @@ HELP_TEXT = """
 ╰→ `.tr [lang]`: Translate text
 ╰→ `.tts [text]`: Text to Speech
 
-**🛠 𝗨𝘁𝗶𝗹𝗶𝘁𝗶𝗲𝘀 & 𝗧𝗼𝗼𝗹𝘀**
+    **🛠 𝗨𝘁𝗶𝗹𝗶𝘁𝗶𝗲𝘀 & 𝗧𝗼𝗼𝗹𝘀**
 ╰→ `.afk [reason]`: Set Auto-Reply/AFK
 ╰→ `.unafk`: Disable AFK
 ╰→ `.weather [city]`: Check weather

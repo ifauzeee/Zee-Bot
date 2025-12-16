@@ -1,28 +1,11 @@
-
 import os
 import json
 from pyrogram import Client, filters
 from helpers import fast_status, UI
+from helpers.mongo import db
 
-DB_FILE = "pmpermit.json"
-APPROVED = set()
-WARNS = {}
 PMPERMIT_ON = True
-
-if os.path.exists(DB_FILE):
-    try:
-        with open(DB_FILE, "r") as f:
-            data = json.load(f)
-            APPROVED = set(data.get("approved", []))
-    except:
-        pass
-
-def save_db():
-    try:
-        with open(DB_FILE, "w") as f:
-            json.dump({"approved": list(APPROVED)}, f)
-    except Exception as e:
-        print(f"Error saving DB: {e}")
+WARNS = {}
 
 @Client.on_message(filters.private & ~filters.me & ~filters.bot & ~filters.service, group=99)
 async def pm_guard(client, message):
@@ -36,7 +19,7 @@ async def pm_guard(client, message):
 
     user_id = message.from_user.id
     
-    if user_id in APPROVED:
+    if await db.is_approved(user_id):
         return
 
     if user_id not in WARNS:
@@ -91,12 +74,13 @@ async def approve_user(client, message):
         return
         
     user_id = message.chat.id
-    APPROVED.add(user_id)
+    
+    await db.approve_user(user_id)
+    
     if user_id in WARNS:
         del WARNS[user_id]
     
-    save_db()
-    await fast_status(message, UI.DONE, "User Approved", "Mereka sekarang bisa chat anda.")
+    await fast_status(message, UI.DONE, "User Approved", "Datanya telah tersimpan di Database.")
 
 @Client.on_message(filters.command("da", prefixes=".") & filters.me)
 async def disapprove_user(client, message):
@@ -104,8 +88,7 @@ async def disapprove_user(client, message):
          return
          
     user_id = message.chat.id
-    if user_id in APPROVED:
-        APPROVED.remove(user_id)
-        save_db()
     
-    await fast_status(message, UI.WARN, "User Disapproved", "Izin chat dicabut.")
+    await db.disapprove_user(user_id)
+    
+    await fast_status(message, UI.WARN, "User Disapproved", "Izin chat dicabut dari Database.")

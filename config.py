@@ -7,10 +7,11 @@ class Config:
     API_ID = os.getenv("API_ID")
     API_HASH = os.getenv("API_HASH")
     SESSION_STRING = os.getenv("SESSION_STRING")
+    MONGO_URL = os.getenv("MONGO_URL")
 
-    if not API_ID or not API_HASH or not SESSION_STRING:
+    if not API_ID or not API_HASH or not SESSION_STRING or not MONGO_URL:
         print("❌ CRITICAL ERROR: Missing .env configuration!")
-        print("Please ensure API_ID, API_HASH, and SESSION_STRING are set.")
+        print("Please ensure API_ID, API_HASH, SESSION_STRING, and MONGO_URL are set.")
         
     if API_ID:
         try:
