@@ -1,0 +1,11 @@
+services:
+  zee-ubot:
+    build: .
+    container_name: zee-ubot
+    restart: unless-stopped
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    tty: true
+    stdin_open: true
