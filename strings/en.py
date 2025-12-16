@@ -28,6 +28,7 @@ HELP_TEXT = """
 ╰→ `.ss [url]`: Screenshot a website
 ╰→ `.tr [lang]`: Translate text
 ╰→ `.tts [text]`: Text to Speech
+╰→ `.fsave`: Force Save (Timer/ViewOnce)
 
     **🛠 𝗨𝘁𝗶𝗹𝗶𝘁𝗶𝗲𝘀 & 𝗧𝗼𝗼𝗹𝘀**
 ╰→ `.afk [reason]`: Set Auto-Reply/AFK
