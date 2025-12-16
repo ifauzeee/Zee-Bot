@@ -1,7 +1,22 @@
 import time
 from datetime import datetime
+from pyrogram.errors import MessageNotModified
+
+class UI:
+    LOAD = "⚡️"
+    DONE = "✅"
+    FAIL = "❌"
+    WARN = "⚠️"
+    INFO = "ℹ️"
+    CHAT = "💬"
+    MEDIA = "📹"
+    
+    DIVIDER = "━━━━━━━━━━━━━━━━━━━━"
+    ARROW = "╰→"
+    BULLET = "•"
 
 def get_text(message):
+    """Extract text from message or reply."""
     text = message.text.split(None, 1)
     if len(text) > 1:
         return text[1]
@@ -10,9 +25,29 @@ def get_text(message):
     return None
 
 async def edit_or_reply(message, text, **kwargs):
-    if message.from_user.is_self:
-        return await message.edit(text, **kwargs)
-    return await message.reply(text, **kwargs)
+    """Safely edit or reply to a message."""
+    try:
+        if message.from_user.is_self:
+            return await message.edit(text, **kwargs)
+        return await message.reply(text, **kwargs)
+    except MessageNotModified:
+        pass
+    except Exception as e:
+        print(f"DEBUG: Message edit failed - {e}")
+
+async def fast_status(message, icon, header, content=None, timer=None):
+    """
+    Format:
+    [ICON] **HEADER**
+    ╰→ Content (optional)
+    """
+    out = f"{icon} **{header}**"
+    if content:
+        out += f"\n{UI.ARROW} `{content}`"
+    if timer:
+        out += f"\n\n⏱ `{timer}s`"
+    
+    await edit_or_reply(message, out)
 
 def human_time(seconds):
     seconds = int(seconds)

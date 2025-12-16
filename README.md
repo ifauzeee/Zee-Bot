@@ -1,112 +1,129 @@
-# Zee-Bot 🤖
+<h1 align="center">
+  <br>
+  <a href="https://github.com/ifauzeee/Zee-Boat"><img src="https://img.icons8.com/clouds/200/000000/rocket.png" alt="Zee-Bot"></a>
+  <br>
+  ⚡️ Zee-Bot Ultimate <br>
+</h1>
 
-A powerful Telegram Userbot built with Pyrogram, running in Docker.
+<p align="center">
+  <a href="https://github.com/ifauzeee/Zee-Bot/stargazers">
+    <img src="https://img.shields.io/github/stars/ifauzeee/Zee-Bot?style=social">
+  </a>
+  <a href="https://github.com/ifauzeee/Zee-Bot/network/members">
+    <img src="https://img.shields.io/github/forks/ifauzeee/Zee-Bot?style=social">
+  </a>
+  <br>
+  <a href="https://python.org">
+    <img src="https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python">
+  </a>
+  <a href="https://docs.pyrogram.org">
+    <img src="https://img.shields.io/badge/Pyrogram-2.0-orange?style=for-the-badge&logo=telegram">
+  </a>
+  <a href="https://www.docker.com">
+    <img src="https://img.shields.io/badge/Docker-Enabled-blue?style=for-the-badge&logo=docker">
+  </a>
+</p>
 
-## Features
+<p align="center">
+  A powerful, aesthetic, and completely modular <b>Telegram Userbot</b> dedicated to enhancing your Telegram experience.<br>
+  Built with performance and aesthetics in mind.
+</p>
 
-- ⚡ **Fast & Async** - Built with Pyrogram and uvloop for maximum performance
-- 🐳 **Dockerized** - Easy deployment with Docker Compose
-- 🔌 **Plugin System** - Modular plugin architecture for easy extension
-- 🔐 **String Session** - No interactive login needed, perfect for cloud deployment
+<hr>
 
-## Available Commands
+## 🌟 Features
 
-| Command | Description |
-|---------|-------------|
-| `.alive` | Check if the bot is running and show ping |
-| `.purge` | Delete messages from replied message to current |
+| 🔰 **Core** | 🛡 **Security** | 📹 **Media** | 🛠 **Utilities** |
+| :--- | :--- | :--- | :--- |
+| `Sync/Async` Architecture | **PM Permit** System | **Sticker** Stealer/Maker | **Dictionary** Lookup |
+| **Plugin** Modular System | **Spam** Protection | **Carbon** Code Image | **Translator** (All Lang) |
+| **Docker** Ready | **Admin** Tools (Ban/Kick) | **Screenshot** Website | **Currency** Converter |
+| **String Session** Login | **AFK** Auto-Reply | **TTS** (Text to Speech) | **Notes** Saver |
 
-## Quick Start
+## 🚀 Quick Start
 
-### Prerequisites
+### 1. Prerequisites
+- [Python 3.10+](https://www.python.org/downloads/)
+- [Docker](https://www.docker.com/) (Optional but Recommended)
+- Telegram Account
 
-- Docker & Docker Compose
-- Telegram API credentials from [my.telegram.org](https://my.telegram.org)
-- Python 3.10+ (for generating session string)
+### 2. Get Credentials
+1. Go to [my.telegram.org](https://my.telegram.org)
+2. Obtain `API_ID` and `API_HASH`
 
-### Installation
+### 3. Deployment
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/ifauzeee/Zee-Bot.git
-   cd Zee-Bot
-   ```
-
-2. **Generate Session String**
-   
-   First, install Pyrogram locally:
-   ```bash
-   pip install pyrogram tgcrypto
-   ```
-   
-   Then run the session generator:
-   ```bash
-   python gen_session.py
-   ```
-   - Enter your API ID & API Hash
-   - Enter your phone number & OTP code
-   - Copy the generated session string
-
-3. **Configure environment variables**
-   ```bash
-   cp .env.example .env
-   ```
-   Edit `.env` and fill in your credentials:
-   - `API_ID` - Your Telegram API ID
-   - `API_HASH` - Your Telegram API Hash
-   - `SESSION_STRING` - Paste the session string from step 2
-
-4. **Build and run**
-   ```bash
-   docker-compose build
-   docker-compose up -d
-   ```
-   The bot will start immediately without asking for login!
-
-### View Logs
+#### 🐳 via Docker (Recommended)
+This is the easiest way to run the bot 24/7.
 
 ```bash
-docker-compose logs -f
+# 1. Clone Repo
+git clone https://github.com/ifauzeee/Zee-Bot.git
+cd Zee-Bot
+
+# 2. Generate Session
+# Run this once on your local machine to login
+pip install pyrogram tgcrypto
+python gen_session.py
+
+# 3. Configure
+cp .env.example .env
+# Edit .env and paste your API_ID, API_HASH, SESSION_STRING
+
+# 4. Run
+docker compose up -d --build
 ```
 
-### Stop the Bot
-
+#### 🐍 via Local Python
 ```bash
-docker-compose down
+# Install dependencies
+pip install -r requirements.txt
+
+# Configure .env as above
+
+# Run
+python main.py
 ```
 
-## Project Structure
+## 🎮 Command List
+Type `.help` in any chat to see the interactive menu.
 
+### 🛡 Admin
+- `.ban`, `.unban`, `.kick`, `.mute`
+- `.pmpermit on/off` - Toggle security
+- `.purge` - Delete messages
+
+### 📹 Media
+- `.kang` - Steal stickers
+- `.carbon [code]` - Beautiful code snippets
+- `.ss [url]` - Screenshot websites
+- `.tts` / `.tr` - Audio & Translation
+
+## 📂 Project Structure
 ```
 Zee-Bot/
-├── main.py              # Main entry point
-├── config.py            # Configuration loader
-├── gen_session.py       # Session string generator
-├── plugins/             # Plugin modules
-│   ├── alive.py         # Alive check command
-│   └── purge.py         # Message purge command
-├── Dockerfile           # Docker image definition
-├── docker-compose.yml   # Docker Compose config
-├── requirements.txt     # Python dependencies
-└── .env.example         # Environment template
+├── 📂 helpers/         # UI & Utility helper functions
+├── 📂 plugins/         # 🧩 Modular plugins directory
+│   ├── 📂 admin/       # Admin tools
+│   ├── 📂 core/        # Core system (Alive, Help, PM Permit)
+│   ├── 📂 media/       # Sticker, Carbon, Media tools
+│   └── 📂 utils/       # Notes, AFK, Misc tools
+├── 📄 config.py        # Safe configuration loader
+├── 📄 main.py          # Bot entry point
+└── 🐳 Dockerfile       # Container configuration
 ```
 
-## Adding New Plugins
+## 🤝 Contribution
+Feel free to contribute!
+1. Fork the repo
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
-Create a new file in the `plugins/` directory:
+## 📄 License
+Distributed under the MIT License. See `LICENSE` for more information.
 
-```python
-from pyrogram import Client, filters
-
-@Client.on_message(filters.command("mycommand", prefixes=".") & filters.me)
-async def my_command(client, message):
-    await message.edit("Hello from my plugin!")
-```
-
-## License
-
-MIT License - Feel free to use and modify!
-
-## Author
-
-Made with ❤️ by [ifauzeee](https://github.com/ifauzeee)
+<p align="center">
+  Made with ❤️ by <a href="https://github.com/ifauzeee"><b>ifauzeee</b></a>
+</p>
