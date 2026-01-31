@@ -11,8 +11,12 @@ import (
 	"strings"
 
 	"zee-ubot/internal/config"
+	"zee-ubot/internal/database"
 	"zee-ubot/internal/handlers"
 	"zee-ubot/internal/middleware"
+	"zee-ubot/internal/modules/admin"
+	"zee-ubot/internal/modules/basic"
+	"zee-ubot/internal/modules/utility"
 
 	"github.com/gotd/td/session"
 	"github.com/gotd/td/telegram"
@@ -60,9 +64,14 @@ func main() {
 		logger.Fatal("Failed to load config", zap.Error(err))
 	}
 
+	if err := database.Init(); err != nil {
+		logger.Fatal("Failed to initialize database", zap.Error(err))
+	}
+
 	manager := handlers.NewManager(logger)
-	manager.Register("ping", "Check bot latency", handlers.PingHandler)
-	manager.Register("help", "Show this help message", handlers.HelpHandler(manager.Commands))
+	basic.Register(manager)
+	admin.Register(manager)
+	utility.Register(manager)
 
 	var storage session.Storage
 
@@ -91,14 +100,14 @@ func main() {
 			return nil
 		}
 		sender := message.NewSender(api)
-		return manager.HandleNewMessage(ctx, sender, update, e)
+		return manager.HandleNewMessage(ctx, sender, api, update, e)
 	})
 	dispatcher.OnNewChannelMessage(func(ctx context.Context, e tg.Entities, update *tg.UpdateNewChannelMessage) error {
 		if api == nil {
 			return nil
 		}
 		sender := message.NewSender(api)
-		return manager.HandleNewMessage(ctx, sender, update, e)
+		return manager.HandleNewMessage(ctx, sender, api, update, e)
 	})
 
 	gaps := updates.New(updates.Config{

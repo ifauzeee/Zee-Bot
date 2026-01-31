@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
+	"zee-ubot/internal/database"
 
 	"github.com/gotd/td/telegram/message"
 	"github.com/gotd/td/tg"
@@ -30,6 +32,7 @@ type Context struct {
 	Logger *zap.Logger
 	Args   []string
 	Peer   tg.InputPeerClass
+	Raw    *tg.Client
 }
 
 func (c *Context) Edit(text string) error {
@@ -57,29 +60,111 @@ func (m *Manager) Register(name, description string, handler HandlerFunc) {
 	}
 }
 
-func (m *Manager) HandleNewMessage(ctx context.Context, sender *message.Sender, update tg.UpdateClass, entities tg.Entities) error {
+func (m *Manager) HandleNewMessage(ctx context.Context, sender *message.Sender, raw *tg.Client, update tg.UpdateClass, entities tg.Entities) error {
+	var msg *tg.Message
+	var ok bool
+
 	switch u := update.(type) {
 	case *tg.UpdateNewMessage:
-		msg, ok := u.Message.(*tg.Message)
-		if !ok {
-			return nil
-		}
-		if msg.Out {
-			return m.processMessage(ctx, sender, msg, entities)
-		}
+		msg, ok = u.Message.(*tg.Message)
 	case *tg.UpdateNewChannelMessage:
-		msg, ok := u.Message.(*tg.Message)
-		if !ok {
-			return nil
+		msg, ok = u.Message.(*tg.Message)
+	}
+
+	if !ok || msg == nil {
+		return nil
+	}
+
+	if msg.Out {
+		isAfkCmd := strings.HasPrefix(msg.Message, ".afk") || strings.HasPrefix(msg.Message, "!afk")
+		isAfkStatus := strings.Contains(msg.Message, "💤") || strings.Contains(msg.Message, "✅")
+
+		if !isAfkCmd && !isAfkStatus {
+			m.checkAndDisableAFK(ctx, sender, msg, entities)
 		}
-		if msg.Out {
-			return m.processMessage(ctx, sender, msg, entities)
+
+		return m.processMessage(ctx, sender, raw, msg, entities)
+	}
+
+	return m.handleIncomingAFK(ctx, sender, msg, entities)
+}
+
+func (m *Manager) checkAndDisableAFK(ctx context.Context, sender *message.Sender, msg *tg.Message, entities tg.Entities) {
+	status, _ := database.GetKV("afk_status")
+	if status != "" {
+		_ = database.DeleteKV("afk_status")
+		parts := strings.SplitN(status, "|", 2)
+		if len(parts) == 2 {
+			startTimeStr := parts[0]
+			var startTime int64
+			_, _ = fmt.Sscanf(startTimeStr, "%d", &startTime)
+			duration := time.Since(time.Unix(startTime, 0)).Round(time.Second)
+
+			peer, _ := m.resolvePeer(msg.PeerID, entities)
+			if peer != nil {
+				text := fmt.Sprintf(
+					"✨ 𝗦𝗔𝗬𝗔 𝗞𝗘𝗠𝗕𝗔𝗟𝗜! ✨\n"+
+						"━━━━━━━━━━━━━━━━━━━━━━\n"+
+						"⏰ 𝗟𝗮𝗺𝗮 𝗔𝗙𝗞 : %s\n"+
+						"━━━━━━━━━━━━━━━━━━━━━━",
+					duration,
+				)
+				_, _ = sender.To(peer).Text(ctx, text)
+			}
 		}
 	}
+}
+
+func (m *Manager) handleIncomingAFK(ctx context.Context, sender *message.Sender, msg *tg.Message, entities tg.Entities) error {
+	status, _ := database.GetKV("afk_status")
+	if status == "" {
+		return nil
+	}
+
+	parts := strings.SplitN(status, "|", 2)
+	if len(parts) < 2 {
+		return nil
+	}
+	startTimeStr, reason := parts[0], parts[1]
+
+	var startTime int64
+	_, _ = fmt.Sscanf(startTimeStr, "%d", &startTime)
+	duration := time.Since(time.Unix(startTime, 0)).Round(time.Second)
+
+	isPM := false
+	if _, ok := msg.PeerID.(*tg.PeerUser); ok {
+		isPM = true
+	}
+
+	isMentioned := false
+	if isPM {
+		isMentioned = true
+	} else {
+		isMentioned = (msg.Flags & (1 << 3)) != 0
+	}
+
+	if isMentioned {
+		peer, err := m.resolvePeer(msg.PeerID, entities)
+		if err != nil {
+			return nil
+		}
+
+		replyText := fmt.Sprintf(
+			"💤 𝗦𝗘𝗗𝗔𝗡𝗚 𝗔𝗙𝗞 💤\n"+
+				"━━━━━━━━━━━━━━━━━━━━━━\n"+
+				"📝 𝗔𝗹𝗮𝘀𝗮𝗻   : %s\n"+
+				"⏳ 𝗗𝘂𝗿𝗮𝘀𝗶   : %s\n"+
+				"━━━━━━━━━━━━━━━━━━━━━━",
+			reason, duration,
+		)
+		_, err = sender.To(peer).Reply(msg.ID).Text(ctx, replyText)
+		return err
+	}
+
 	return nil
 }
 
-func (m *Manager) processMessage(ctx context.Context, sender *message.Sender, msg *tg.Message, entities tg.Entities) error {
+func (m *Manager) processMessage(ctx context.Context, sender *message.Sender, raw *tg.Client, msg *tg.Message, entities tg.Entities) error {
 	text := msg.Message
 	if len(text) < 2 {
 		return nil
@@ -112,6 +197,7 @@ func (m *Manager) processMessage(ctx context.Context, sender *message.Sender, ms
 			Logger: m.Logger,
 			Args:   parts[1:],
 			Peer:   peer,
+			Raw:    raw,
 		}
 
 		if err := cmd.Handler(c); err != nil {

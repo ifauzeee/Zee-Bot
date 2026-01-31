@@ -1,0 +1,11 @@
+bot.exe
+zee-mirror.exe
+session/
+.git/
+.env
+tmp/
+*.db
+*.log
+docker-compose.yml
+Dockerfile
+README.md
