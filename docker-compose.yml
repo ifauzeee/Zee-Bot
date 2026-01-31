@@ -1,0 +1,13 @@
+
+
+services:
+  bot:
+    build: .
+    container_name: zee-ubot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./session:/app/session
+    stdin_open: true # docker run -i
+    tty: true        # docker run -t

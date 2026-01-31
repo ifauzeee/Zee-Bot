@@ -1,0 +1,35 @@
+# Environment Variables
+.env
+
+# Session Data
+session/
+# Keep the directory if needed, but ignore contents
+!session/.gitkeep
+
+# Binaries and Build Artifacts
+zee-mirror
+zee-mirror.exe
+*.exe
+*.test
+*.out
+*.dll
+*.so
+*.dylib
+bin/
+dist/
+
+# IDE and Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Go
+vendor/
+go.work
+
+# Task
+.task/
+
+# Logs
+*.log
