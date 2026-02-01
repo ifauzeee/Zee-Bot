@@ -16,24 +16,17 @@ func Register(m *handlers.Manager) {
 
 func pingHandler(c *handlers.Context) error {
 	start := time.Now()
-
 	if err := c.Edit("⚡️ `Analyzing latency...` "); err != nil {
 		return err
 	}
-
 	duration := time.Since(start).Round(time.Millisecond)
 
-	finalText := fmt.Sprintf(
-		"🛰 𝗣𝗢𝗡𝗚 𝗦𝗧𝗔𝗧𝗨𝗦\n"+
-			"━━━━━━━━━━━━━━━━━━━━━━\n"+
-			"⚡️ 𝗟𝗮𝘁𝗲𝗻𝗰𝘆  : %s\n"+
-			"⚙️ 𝗦𝘁𝗮𝘁𝘂𝘀   : Safe\n"+
-			"🤖 𝗘𝗻𝗴𝗶𝗻𝗲   : Zee-Ubot\n"+
-			"━━━━━━━━━━━━━━━━━━━━━━",
-		duration,
-	)
+	style := c.NewStyle("Pong Status", "🛰")
+	style.AddRowWithIcon("⚡️", "Latency", duration)
+	style.AddRowWithIcon("⚙️", "Status", "Safe")
+	style.AddRowWithIcon("🤖", "Engine", "Zee-Ubot")
 
-	return c.Edit(finalText)
+	return c.Edit(style.Build())
 }
 
 func helpHandler(m *handlers.Manager) handlers.HandlerFunc {
@@ -49,22 +42,22 @@ func helpHandler(m *handlers.Manager) handlers.HandlerFunc {
 		sort.Strings(keys)
 
 		var b strings.Builder
-		b.WriteString("✨ 𝗭𝗘𝗘-𝗨𝗕𝗢𝗧 𝗠𝗘𝗡𝗨 ✨\n")
-		b.WriteString("━━━━━━━━━━━━━━━━━━━━━━\n")
-		b.WriteString("  [ 🗂 𝗠𝗔𝗜𝗡 𝗖𝗢𝗠𝗠𝗔𝗡𝗗𝗦 ]\n\n")
-
 		for _, k := range keys {
 			cmd := m.Commands[k]
 			spacing := ""
 			if len(cmd.Name) < maxLen {
 				spacing = strings.Repeat(" ", maxLen-len(cmd.Name))
 			}
-			fmt.Fprintf(&b, "  ▫️ .%s %s ┆ %s\n", cmd.Name, spacing, cmd.Description)
+			fmt.Fprintf(&b, "▫️ .%s %s ┆ %s\n", cmd.Name, spacing, cmd.Description)
 		}
 
-		b.WriteString("\n━━━━━━━━━━━━━━━━━━━━━━\n")
-		b.WriteString("  ⋄ 𝗖𝗿𝗲𝗮𝘁𝗲𝗱 𝘄𝗶𝘁𝗵 ❤️ 𝗯𝘆 @zee")
+		style := c.NewStyle("Zee-Ubot Menu", "✨")
+		style.SetFooter("⋄ 𝗖𝗿𝗲𝗮𝘁𝗲𝗱 𝘄𝗶𝘁𝗵 ❤️ 𝗯𝘆 @zee")
 
-		return c.Edit(b.String())
+		output := style.Build()
+		output = strings.Replace(output, handlers.Divider, handlers.Divider+"\n  [ 🗂 𝗠𝗔𝗜𝗡 𝗖𝗢𝗠𝗠𝗔𝗡𝗗𝗦 ]\n\n"+b.String()+"\n"+handlers.Divider, 1)
+		output = strings.Replace(output, "🏷 **Title/Name** : `Unknown`"+"\n", "", 1)
+
+		return c.Edit(output)
 	}
 }

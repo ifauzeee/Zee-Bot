@@ -104,14 +104,9 @@ func (m *Manager) checkAndDisableAFK(ctx context.Context, sender *message.Sender
 
 			peer, _ := m.resolvePeer(ctx, raw, msg.PeerID, entities)
 			if peer != nil {
-				text := fmt.Sprintf(
-					"✨ 𝗦𝗔𝗬𝗔 𝗞𝗘𝗠𝗕𝗔𝗟𝗜! ✨\n"+
-						"━━━━━━━━━━━━━━━━━━━━━━\n"+
-						"⏰ 𝗟𝗮𝗺𝗮 𝗔𝗙𝗞 : %s\n"+
-						"━━━━━━━━━━━━━━━━━━━━━━",
-					duration,
-				)
-				_, _ = sender.To(peer).Text(ctx, text)
+				style := (&Context{Ctx: ctx, Sender: sender, Peer: peer, Raw: raw}).NewStyle("𝗦𝗔𝗬𝗔 𝗞𝗘𝗠𝗕𝗔𝗟𝗜!", "✨")
+				style.AddRowWithIcon("⏰", "Lama AFK", duration)
+				_, _ = sender.To(peer).Text(ctx, style.Build())
 			}
 		}
 	}
@@ -156,15 +151,10 @@ func (m *Manager) handleIncomingAFK(ctx context.Context, sender *message.Sender,
 			return nil
 		}
 
-		replyText := fmt.Sprintf(
-			"💤 𝗦𝗘𝗗𝗔𝗡𝗚 𝗔𝗙𝗞 💤\n"+
-				"━━━━━━━━━━━━━━━━━━━━━━\n"+
-				"📝 𝗔𝗹𝗮𝘀𝗮𝗻   : %s\n"+
-				"⏳ 𝗗𝘂𝗿𝗮𝘀𝗶   : %s\n"+
-				"━━━━━━━━━━━━━━━━━━━━━━",
-			reason, duration,
-		)
-		_, err = sender.To(peer).Reply(msg.ID).Text(ctx, replyText)
+		style := (&Context{Ctx: ctx, Sender: sender, Peer: peer, Raw: raw}).NewStyle("𝗦𝗘𝗗𝗔𝗡𝗚 𝗔𝗙𝗞", "💤")
+		style.AddRowWithIcon("📝", "Alasan", reason)
+		style.AddRowWithIcon("⏳", "Durasi", duration)
+		_, err = sender.To(peer).Reply(msg.ID).Text(ctx, style.Build())
 		if err != nil {
 			m.Logger.Error("AFK: Failed to send reply", zap.Error(err))
 		}
