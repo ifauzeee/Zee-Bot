@@ -6,10 +6,10 @@ vars:
   ENTRY_POINT: ./cmd/bot
 
 tasks:
-  default:
-    desc: List all tasks
+  setup:
+    desc: Setup the bot (login and generate session string)
     cmds:
-      - task --list
+      - powershell -ExecutionPolicy Bypass -File ./setup.ps1
 
   build:
     desc: Build the binary
