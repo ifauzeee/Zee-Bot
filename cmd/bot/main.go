@@ -16,6 +16,7 @@ import (
 	"zee-ubot/internal/middleware"
 	"zee-ubot/internal/modules/admin"
 	"zee-ubot/internal/modules/basic"
+	"zee-ubot/internal/modules/media"
 	"zee-ubot/internal/modules/utility"
 
 	"github.com/gotd/td/session"
@@ -72,6 +73,7 @@ func main() {
 	basic.Register(manager)
 	admin.Register(manager)
 	utility.Register(manager)
+	media.Register(manager)
 
 	var storage session.Storage
 
