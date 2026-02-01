@@ -154,6 +154,7 @@ func main() {
 			zap.String("username", self.Username),
 			zap.Int64("id", self.ID),
 		)
+		manager.SelfID = self.ID
 
 		return gaps.Run(ctx, client.API(), self.ID, updates.AuthOptions{
 			OnStart: func(ctx context.Context) {

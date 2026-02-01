@@ -23,6 +23,7 @@ type Command struct {
 type Manager struct {
 	Commands map[string]Command
 	Logger   *zap.Logger
+	SelfID   int64
 }
 
 type Context struct {
@@ -49,6 +50,7 @@ func NewManager(logger *zap.Logger) *Manager {
 	return &Manager{
 		Commands: make(map[string]Command),
 		Logger:   logger,
+		SelfID:   0,
 	}
 }
 
@@ -140,12 +142,17 @@ func (m *Manager) handleIncomingAFK(ctx context.Context, sender *message.Sender,
 	if isPM {
 		isMentioned = true
 	} else {
-		isMentioned = (msg.Flags & (1 << 3)) != 0
+		isMentioned = msg.Mentioned
 	}
 
 	if isMentioned {
+		m.Logger.Info("AFK: Mentioned or PM received, sending reply",
+			zap.Bool("isPM", isPM),
+			zap.String("reason", reason))
+
 		peer, err := m.resolvePeer(msg.PeerID, entities)
 		if err != nil {
+			m.Logger.Warn("AFK: Could not resolve peer for reply", zap.Error(err))
 			return nil
 		}
 
@@ -158,6 +165,9 @@ func (m *Manager) handleIncomingAFK(ctx context.Context, sender *message.Sender,
 			reason, duration,
 		)
 		_, err = sender.To(peer).Reply(msg.ID).Text(ctx, replyText)
+		if err != nil {
+			m.Logger.Error("AFK: Failed to send reply", zap.Error(err))
+		}
 		return err
 	}
 
