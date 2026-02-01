@@ -23,19 +23,17 @@ func Register(m *handlers.Manager) {
 }
 
 func saveHandler(c *handlers.Context) error {
-	defer func() {
-		if ch, ok := c.Peer.(*tg.InputPeerChannel); ok {
-			_, _ = c.Raw.ChannelsDeleteMessages(c.Ctx, &tg.ChannelsDeleteMessagesRequest{
-				Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: ch.AccessHash},
-				ID:      []int{c.Msg.ID},
-			})
-		} else {
-			_, _ = c.Raw.MessagesDeleteMessages(c.Ctx, &tg.MessagesDeleteMessagesRequest{
-				Revoke: true,
-				ID:     []int{c.Msg.ID},
-			})
-		}
-	}()
+	if ch, ok := c.Peer.(*tg.InputPeerChannel); ok {
+		_, _ = c.Raw.ChannelsDeleteMessages(c.Ctx, &tg.ChannelsDeleteMessagesRequest{
+			Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: ch.AccessHash},
+			ID:      []int{c.Msg.ID},
+		})
+	} else {
+		_, _ = c.Raw.MessagesDeleteMessages(c.Ctx, &tg.MessagesDeleteMessagesRequest{
+			Revoke: true,
+			ID:     []int{c.Msg.ID},
+		})
+	}
 
 	reply, err := getRepliedMessage(c)
 	if err != nil {
