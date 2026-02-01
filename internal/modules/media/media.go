@@ -92,7 +92,10 @@ func processMedia(c *handlers.Context, msg *tg.Message, captionPrefix string) er
 	target := c.Sender.Self()
 	var sendErr error
 
-	caption := fmt.Sprintf("%s\nTook: %s", captionPrefix, duration)
+	style := c.NewStyle("Media Result", "🔓")
+	style.AddRow("Processing Time", duration)
+	style.SetFooter(fmt.Sprintf("<i>Type: %s</i>", captionPrefix))
+	caption := style.Build()
 
 	ext := strings.ToLower(filepath.Ext(path))
 	if isVideo {

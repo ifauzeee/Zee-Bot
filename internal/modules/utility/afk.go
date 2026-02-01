@@ -26,11 +26,7 @@ func afkHandler(c *handlers.Context) error {
 		return c.Edit("❌ Gagal mengaktifkan AFK.")
 	}
 
-	return c.Edit(fmt.Sprintf(
-		"💤 𝗔𝗙𝗞 𝗗𝗜𝗔𝗞𝗧𝗜𝗙𝗞𝗔𝗡 💤\n"+
-			"━━━━━━━━━━━━━━━━━━━━━━\n"+
-			"📝 𝗔𝗹𝗮𝘀𝗮𝗻 : %s\n"+
-			"━━━━━━━━━━━━━━━━━━━━━━",
-		reason,
-	))
+	style := c.NewStyle("𝗔𝗙𝗞 𝗗𝗜𝗔𝗞𝗧𝗜𝗙𝗞𝗔𝗡", "💤")
+	style.AddRowWithIcon("📝", "Alasan", reason)
+	return c.Edit(style.Build())
 }
