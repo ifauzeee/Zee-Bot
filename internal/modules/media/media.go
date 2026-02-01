@@ -20,9 +20,39 @@ import (
 func Register(m *handlers.Manager) {
 	m.Register("save", "Save view once or timer media", saveHandler)
 	m.Register("vo", "Alias for save (Get View Once)", saveHandler)
+	m.Register("copy", "Copy media from a Telegram message link", copyHandler)
 }
 
 func saveHandler(c *handlers.Context) error {
+	deleteCommandMessage(c)
+
+	reply, err := getRepliedMessage(c)
+	if err != nil {
+		c.Logger.Error("save: getRepliedMessage failed", zap.Error(err))
+		return nil
+	}
+
+	return processMedia(c, reply, "🔓 <b>Media Saved</b>")
+}
+
+func copyHandler(c *handlers.Context) error {
+	if len(c.Args) == 0 {
+		return nil
+	}
+
+	link := c.Args[0]
+	deleteCommandMessage(c)
+
+	msg, err := getMessageFromLink(c, link)
+	if err != nil {
+		c.Logger.Error("copy: failed to get message", zap.Error(err), zap.String("link", link))
+		return nil
+	}
+
+	return processMedia(c, msg, "🔓 <b>Media Copied</b>")
+}
+
+func deleteCommandMessage(c *handlers.Context) {
 	if ch, ok := c.Peer.(*tg.InputPeerChannel); ok {
 		_, _ = c.Raw.ChannelsDeleteMessages(c.Ctx, &tg.ChannelsDeleteMessagesRequest{
 			Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: ch.AccessHash},
@@ -34,21 +64,16 @@ func saveHandler(c *handlers.Context) error {
 			ID:     []int{c.Msg.ID},
 		})
 	}
+}
 
-	reply, err := getRepliedMessage(c)
-	if err != nil {
-		c.Logger.Error("save: getRepliedMessage failed", zap.Error(err))
-		return nil
-	}
-
-	if reply.Media == nil {
+func processMedia(c *handlers.Context, msg *tg.Message, captionPrefix string) error {
+	if msg.Media == nil {
 		return nil
 	}
 
 	startTime := time.Now()
-
 	d := downloader.NewDownloader()
-	path, isVideo, err := downloadMedia(c.Ctx, c.Raw, d, reply.Media)
+	path, isVideo, err := downloadMedia(c.Ctx, c.Raw, d, msg.Media)
 	if err != nil {
 		c.Logger.Error("Download failed", zap.Error(err))
 		return nil
@@ -67,7 +92,7 @@ func saveHandler(c *handlers.Context) error {
 	target := c.Sender.Self()
 	var sendErr error
 
-	caption := fmt.Sprintf("🔓 <b>Media Saved</b>\nTook: %s", duration)
+	caption := fmt.Sprintf("%s\nTook: %s", captionPrefix, duration)
 
 	ext := strings.ToLower(filepath.Ext(path))
 	if isVideo {
@@ -83,6 +108,128 @@ func saveHandler(c *handlers.Context) error {
 	}
 
 	return nil
+}
+
+func getMessageFromLink(c *handlers.Context, link string) (*tg.Message, error) {
+	link = strings.TrimPrefix(link, "https://")
+	link = strings.TrimPrefix(link, "t.me/")
+	parts := strings.Split(link, "/")
+	if len(parts) < 2 {
+		return nil, fmt.Errorf("invalid link format")
+	}
+
+	var peerStr string
+	var msgID int
+	isPrivate := false
+
+	for i, part := range parts {
+		if part == "c" && i+2 < len(parts) {
+			isPrivate = true
+			peerStr = parts[i+1]
+			_, _ = fmt.Sscanf(parts[i+2], "%d", &msgID)
+			break
+		}
+	}
+
+	if !isPrivate {
+		peerStr = parts[len(parts)-2]
+		_, _ = fmt.Sscanf(parts[len(parts)-1], "%d", &msgID)
+	}
+
+	var inputPeer tg.InputPeerClass
+	var err error
+
+	if isPrivate {
+		var channelID int64
+		_, _ = fmt.Sscanf(peerStr, "%d", &channelID)
+
+		dialogs, err := c.Raw.MessagesGetDialogs(c.Ctx, &tg.MessagesGetDialogsRequest{
+			Limit: 100,
+		})
+		if err == nil {
+			var chats []tg.ChatClass
+			switch d := dialogs.(type) {
+			case *tg.MessagesDialogs:
+				chats = d.Chats
+			case *tg.MessagesDialogsSlice:
+				chats = d.Chats
+			}
+
+			for _, chat := range chats {
+				if ch, ok := chat.(*tg.Channel); ok && ch.ID == channelID {
+					inputPeer = &tg.InputPeerChannel{ChannelID: ch.ID, AccessHash: ch.AccessHash}
+					break
+				}
+			}
+		}
+
+		if inputPeer == nil {
+			res, err := c.Raw.ChannelsGetChannels(c.Ctx, []tg.InputChannelClass{
+				&tg.InputChannel{ChannelID: channelID},
+			})
+			if err == nil && len(res.GetChats()) > 0 {
+				if ch, ok := res.GetChats()[0].(*tg.Channel); ok {
+					inputPeer = &tg.InputPeerChannel{ChannelID: ch.ID, AccessHash: ch.AccessHash}
+				}
+			}
+		}
+
+		if inputPeer == nil {
+			return nil, fmt.Errorf("could not find private channel with ID %d. Make sure the bot is a member.", channelID)
+		}
+	} else {
+		resolved, err := c.Raw.ContactsResolveUsername(c.Ctx, &tg.ContactsResolveUsernameRequest{
+			Username: peerStr,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		if len(resolved.Chats) > 0 {
+			ch := resolved.Chats[0].(*tg.Channel)
+			inputPeer = &tg.InputPeerChannel{ChannelID: ch.ID, AccessHash: ch.AccessHash}
+		} else if len(resolved.Users) > 0 {
+			u := resolved.Users[0].(*tg.User)
+			inputPeer = &tg.InputPeerUser{UserID: u.ID, AccessHash: u.AccessHash}
+		} else {
+			return nil, fmt.Errorf("could not resolve username: %s", peerStr)
+		}
+	}
+
+	var result tg.MessagesMessagesClass
+	if ch, ok := inputPeer.(*tg.InputPeerChannel); ok {
+		result, err = c.Raw.ChannelsGetMessages(c.Ctx, &tg.ChannelsGetMessagesRequest{
+			Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: ch.AccessHash},
+			ID:      []tg.InputMessageClass{&tg.InputMessageID{ID: msgID}},
+		})
+	} else {
+		result, err = c.Raw.MessagesGetMessages(c.Ctx, []tg.InputMessageClass{&tg.InputMessageID{ID: msgID}})
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	var messages []tg.MessageClass
+	switch m := result.(type) {
+	case *tg.MessagesMessages:
+		messages = m.Messages
+	case *tg.MessagesMessagesSlice:
+		messages = m.Messages
+	case *tg.MessagesChannelMessages:
+		messages = m.Messages
+	}
+
+	if len(messages) == 0 {
+		return nil, fmt.Errorf("message not found")
+	}
+
+	msg, ok := messages[0].(*tg.Message)
+	if !ok {
+		return nil, fmt.Errorf("not a message")
+	}
+
+	return msg, nil
 }
 
 func getRepliedMessage(c *handlers.Context) (*tg.Message, error) {
