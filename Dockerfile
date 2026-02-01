@@ -1,9 +1,6 @@
 # Build Stage
 FROM golang:1.25-alpine AS builder
 
-# Install build dependencies first (cached layer)
-RUN apk add --no-cache gcc musl-dev
-
 WORKDIR /app
 
 COPY go.mod go.sum ./
@@ -13,9 +10,8 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 COPY . .
 
-# Cache build artifacts
-# CGO_ENABLED=1 required for go-sqlite3
-ENV CGO_ENABLED=1
+# CGO_ENABLED=0 makes build super fast (Turbo) and the binary static
+ENV CGO_ENABLED=0
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
