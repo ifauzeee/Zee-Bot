@@ -82,16 +82,16 @@ func (m *Manager) HandleNewMessage(ctx context.Context, sender *message.Sender, 
 		isAfkStatus := strings.Contains(msg.Message, "💤") || strings.Contains(msg.Message, "✅")
 
 		if !isAfkCmd && !isAfkStatus {
-			m.checkAndDisableAFK(ctx, sender, msg, entities)
+			m.checkAndDisableAFK(ctx, sender, raw, msg, entities)
 		}
 
 		return m.processMessage(ctx, sender, raw, msg, entities)
 	}
 
-	return m.handleIncomingAFK(ctx, sender, msg, entities)
+	return m.handleIncomingAFK(ctx, sender, raw, msg, entities)
 }
 
-func (m *Manager) checkAndDisableAFK(ctx context.Context, sender *message.Sender, msg *tg.Message, entities tg.Entities) {
+func (m *Manager) checkAndDisableAFK(ctx context.Context, sender *message.Sender, raw *tg.Client, msg *tg.Message, entities tg.Entities) {
 	status, _ := database.GetKV("afk_status")
 	if status != "" {
 		_ = database.DeleteKV("afk_status")
@@ -102,7 +102,7 @@ func (m *Manager) checkAndDisableAFK(ctx context.Context, sender *message.Sender
 			_, _ = fmt.Sscanf(startTimeStr, "%d", &startTime)
 			duration := time.Since(time.Unix(startTime, 0)).Round(time.Second)
 
-			peer, _ := m.resolvePeer(msg.PeerID, entities)
+			peer, _ := m.resolvePeer(ctx, raw, msg.PeerID, entities)
 			if peer != nil {
 				text := fmt.Sprintf(
 					"✨ 𝗦𝗔𝗬𝗔 𝗞𝗘𝗠𝗕𝗔𝗟𝗜! ✨\n"+
@@ -117,7 +117,7 @@ func (m *Manager) checkAndDisableAFK(ctx context.Context, sender *message.Sender
 	}
 }
 
-func (m *Manager) handleIncomingAFK(ctx context.Context, sender *message.Sender, msg *tg.Message, entities tg.Entities) error {
+func (m *Manager) handleIncomingAFK(ctx context.Context, sender *message.Sender, raw *tg.Client, msg *tg.Message, entities tg.Entities) error {
 	status, _ := database.GetKV("afk_status")
 	if status == "" {
 		return nil
@@ -150,7 +150,7 @@ func (m *Manager) handleIncomingAFK(ctx context.Context, sender *message.Sender,
 			zap.Bool("isPM", isPM),
 			zap.String("reason", reason))
 
-		peer, err := m.resolvePeer(msg.PeerID, entities)
+		peer, err := m.resolvePeer(ctx, raw, msg.PeerID, entities)
 		if err != nil {
 			m.Logger.Warn("AFK: Could not resolve peer for reply", zap.Error(err))
 			return nil
@@ -192,7 +192,7 @@ func (m *Manager) processMessage(ctx context.Context, sender *message.Sender, ra
 	cmdName := strings.ToLower(parts[0])
 
 	if cmd, exists := m.Commands[cmdName]; exists {
-		peer, err := m.resolvePeer(msg.PeerID, entities)
+		peer, err := m.resolvePeer(ctx, raw, msg.PeerID, entities)
 		if err != nil {
 			m.Logger.Warn("Could not resolve peer", zap.Error(err))
 			return nil
@@ -218,30 +218,50 @@ func (m *Manager) processMessage(ctx context.Context, sender *message.Sender, ra
 	return nil
 }
 
-func (m *Manager) resolvePeer(peer tg.PeerClass, entities tg.Entities) (tg.InputPeerClass, error) {
+func (m *Manager) resolvePeer(ctx context.Context, raw *tg.Client, peer tg.PeerClass, entities tg.Entities) (tg.InputPeerClass, error) {
 	switch p := peer.(type) {
 	case *tg.PeerUser:
-		user, ok := entities.Users[p.UserID]
-		if !ok {
-			return nil, fmt.Errorf("user not found")
+		if user, ok := entities.Users[p.UserID]; ok {
+			return &tg.InputPeerUser{
+				UserID:     user.ID,
+				AccessHash: user.AccessHash,
+			}, nil
 		}
-		return &tg.InputPeerUser{
-			UserID:     user.ID,
-			AccessHash: user.AccessHash,
-		}, nil
+		if raw != nil {
+			users, err := raw.UsersGetUsers(ctx, []tg.InputUserClass{&tg.InputUser{UserID: p.UserID}})
+			if err == nil && len(users) > 0 {
+				if user, ok := users[0].(*tg.User); ok {
+					return &tg.InputPeerUser{
+						UserID:     user.ID,
+						AccessHash: user.AccessHash,
+					}, nil
+				}
+			}
+		}
+		return nil, fmt.Errorf("user not found")
 	case *tg.PeerChat:
 		return &tg.InputPeerChat{
 			ChatID: p.ChatID,
 		}, nil
 	case *tg.PeerChannel:
-		channel, ok := entities.Channels[p.ChannelID]
-		if !ok {
-			return nil, fmt.Errorf("channel not found")
+		if channel, ok := entities.Channels[p.ChannelID]; ok {
+			return &tg.InputPeerChannel{
+				ChannelID:  channel.ID,
+				AccessHash: channel.AccessHash,
+			}, nil
 		}
-		return &tg.InputPeerChannel{
-			ChannelID:  channel.ID,
-			AccessHash: channel.AccessHash,
-		}, nil
+		if raw != nil {
+			channels, err := raw.ChannelsGetChannels(ctx, []tg.InputChannelClass{&tg.InputChannel{ChannelID: p.ChannelID}})
+			if err == nil && len(channels.GetChats()) > 0 {
+				if channel, ok := channels.GetChats()[0].(*tg.Channel); ok {
+					return &tg.InputPeerChannel{
+						ChannelID:  channel.ID,
+						AccessHash: channel.AccessHash,
+					}, nil
+				}
+			}
+		}
+		return nil, fmt.Errorf("channel not found")
 	}
 	return nil, nil
 }
