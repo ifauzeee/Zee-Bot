@@ -7,6 +7,8 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      - TZ=Asia/Jakarta
     volumes:
       - ./session:/app/session
     stdin_open: true # docker run -i

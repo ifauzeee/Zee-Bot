@@ -9,6 +9,10 @@ import (
 	"github.com/gotd/td/tg"
 )
 
+func init() {
+	handlers.RegisterModule(Register)
+}
+
 func Register(m *handlers.Manager) {
 	m.Register("purge", "Delete messages", purgeHandler)
 	m.Register("kick", "Kick user from group", kickHandler)
@@ -64,8 +68,7 @@ func kickHandler(c *handlers.Context) error {
 	var targetAccessHash int64
 	found := false
 
-	switch m := msgs.(type) {
-	case *tg.MessagesChannelMessages:
+	if m, ok := msgs.(*tg.MessagesChannelMessages); ok {
 		for _, msg := range m.Messages {
 			if msgVal, ok := msg.(*tg.Message); ok {
 				if peerUser, ok := msgVal.FromID.(*tg.PeerUser); ok {
@@ -101,19 +104,23 @@ func kickHandler(c *handlers.Context) error {
 	})
 
 	if err != nil {
-		return c.Edit(fmt.Sprintf("❌ **Kick Failed**: `%v`", err))
+		style := c.NewStyle("Kick Failed", "❌")
+		style.AddRow("Error", err.Error())
+		return c.Edit(style.Build())
 	}
 
-	return c.Edit("✅ **User successfully kicked from the group!**")
+	style := c.NewStyle("Kick Success", "✅")
+	style.AddRow("User Status", "Successfully kicked from group")
+	return c.Edit(style.Build())
 }
 
 func zombiesHandler(c *handlers.Context) error {
 	inputChannel, ok := c.Peer.(*tg.InputPeerChannel)
 	if !ok {
-		return c.Edit("❌ This command only works in supergroups.")
+		return c.EditStatus("❌", "This command only works in supergroups.")
 	}
 
-	_ = c.Edit("🔍 `Searching for zombies...`")
+	_ = c.EditStatus("🔍", "Searching for zombies...")
 
 	var zombies []*tg.User
 	offset := 0
@@ -152,10 +159,12 @@ func zombiesHandler(c *handlers.Context) error {
 	}
 
 	if len(zombies) == 0 {
-		return c.Edit("✅ `No zombies found in this group!`")
+		style := c.NewStyle("Zombie Cleanup", "🧹")
+		style.AddRow("Status", "No zombies found in this group")
+		return c.Edit(style.Build())
 	}
 
-	_ = c.Edit(fmt.Sprintf("🧟 `Found %d zombies. Cleaning up...`", len(zombies)))
+	_ = c.EditStatus("🧟", "Found "+fmt.Sprintf("%d", len(zombies))+" zombies. Cleaning up...")
 
 	count := 0
 	for _, z := range zombies {
@@ -180,7 +189,7 @@ func zombiesHandler(c *handlers.Context) error {
 
 	style := c.NewStyle("Zombie Cleanup", "🧹")
 	style.AddRow("Zombies Removed", count)
-	style.SetFooter("✅ `Group is now clean!`")
+	style.AddRow("Status", "Group is now clean")
 
 	return c.Edit(style.Build())
 }

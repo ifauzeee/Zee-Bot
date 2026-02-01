@@ -5,6 +5,7 @@ go 1.25.6
 require (
 	github.com/gotd/td v0.138.0
 	github.com/joho/godotenv v1.5.1
+	github.com/pressly/goose/v3 v3.26.0
 	go.uber.org/zap v1.27.1
 	modernc.org/sqlite v1.44.3
 )
@@ -27,10 +28,12 @@ require (
 	github.com/klauspost/compress v1.18.3 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/mfridman/interpolate v0.0.2 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/ogen-go/ogen v1.16.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/segmentio/asm v1.2.1 // indirect
+	github.com/sethvargo/go-retry v0.3.0 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	go.opentelemetry.io/otel v1.39.0 // indirect
 	go.opentelemetry.io/otel/metric v1.39.0 // indirect

@@ -2,14 +2,19 @@ package database
 
 import (
 	"database/sql"
+	"embed"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/pressly/goose/v3"
 	_ "modernc.org/sqlite"
 )
 
 var DB *sql.DB
+
+//go:embed migrations/*.sql
+var embedMigrations embed.FS
 
 func Init() error {
 	dbPath := "zee.db"
@@ -29,22 +34,16 @@ func Init() error {
 		return fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	return createTables()
-}
-
-func createTables() error {
-	queries := []string{
-		`CREATE TABLE IF NOT EXISTS kv_store (
-			key TEXT PRIMARY KEY,
-			value TEXT
-		);`,
+	if err := goose.SetDialect("sqlite3"); err != nil {
+		return fmt.Errorf("failed to set goose dialect: %w", err)
 	}
 
-	for _, query := range queries {
-		if _, err := DB.Exec(query); err != nil {
-			return fmt.Errorf("failed to execute query %q: %w", query, err)
-		}
+	goose.SetBaseFS(embedMigrations)
+
+	if err := goose.Up(DB, "migrations"); err != nil {
+		return fmt.Errorf("failed to run migrations: %w", err)
 	}
+
 	return nil
 }
 

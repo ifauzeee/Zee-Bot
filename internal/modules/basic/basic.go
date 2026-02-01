@@ -9,6 +9,10 @@ import (
 	"zee-ubot/internal/handlers"
 )
 
+func init() {
+	handlers.RegisterModule(Register)
+}
+
 func Register(m *handlers.Manager) {
 	m.Register("ping", "Check bot latency", pingHandler)
 	m.Register("help", "Show this help message", helpHandler(m))
@@ -16,8 +20,8 @@ func Register(m *handlers.Manager) {
 
 func pingHandler(c *handlers.Context) error {
 	start := time.Now()
-	if err := c.Edit("⚡️ `Analyzing latency...` "); err != nil {
-		return err
+	if err := c.EditStatus("⚡️", "Analyzing latency..."); err != nil {
+		return fmt.Errorf("ping: failed to set status: %w", err)
 	}
 	duration := time.Since(start).Round(time.Millisecond)
 
@@ -26,7 +30,10 @@ func pingHandler(c *handlers.Context) error {
 	style.AddRowWithIcon("⚙️", "Status", "Safe")
 	style.AddRowWithIcon("🤖", "Engine", "Zee-Ubot")
 
-	return c.Edit(style.Build())
+	if err := c.Edit(style.Build()); err != nil {
+		return fmt.Errorf("ping: failed to send result: %w", err)
+	}
+	return nil
 }
 
 func helpHandler(m *handlers.Manager) handlers.HandlerFunc {
@@ -48,16 +55,18 @@ func helpHandler(m *handlers.Manager) handlers.HandlerFunc {
 			if len(cmd.Name) < maxLen {
 				spacing = strings.Repeat(" ", maxLen-len(cmd.Name))
 			}
-			fmt.Fprintf(&b, "▫️ .%s %s ┆ %s\n", cmd.Name, spacing, cmd.Description)
+			fmt.Fprintf(&b, "%s .%s %s %s %s\n", handlers.RowPrefix, cmd.Name, spacing, handlers.Arrow, cmd.Description)
 		}
 
 		style := c.NewStyle("Zee-Ubot Menu", "✨")
+
+		style.AddRawRow(b.String())
+
 		style.SetFooter("⋄ 𝗖𝗿𝗲𝗮𝘁𝗲𝗱 𝘄𝗶𝘁𝗵 ❤️ 𝗯𝘆 @zee")
 
-		output := style.Build()
-		output = strings.Replace(output, handlers.Divider, handlers.Divider+"\n  [ 🗂 𝗠𝗔𝗜𝗡 𝗖𝗢𝗠𝗠𝗔𝗡𝗗𝗦 ]\n\n"+b.String()+"\n"+handlers.Divider, 1)
-		output = strings.Replace(output, "🏷 **Title/Name** : `Unknown`"+"\n", "", 1)
-
-		return c.Edit(output)
+		if err := c.Edit(style.Build()); err != nil {
+			return fmt.Errorf("help: failed to send menu: %w", err)
+		}
+		return nil
 	}
 }

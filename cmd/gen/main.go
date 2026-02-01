@@ -105,13 +105,13 @@ func main() {
 		fmt.Println("\n🚀 Starting Login Helper...")
 
 		err = client.Run(context.Background(), func(ctx context.Context) error {
-			if err := client.Auth().IfNecessary(ctx, flow); err != nil {
-				return err
+			if authErr := client.Auth().IfNecessary(ctx, flow); authErr != nil {
+				return authErr
 			}
 
-			user, err := client.Self(ctx)
-			if err != nil {
-				return err
+			user, selfErr := client.Self(ctx)
+			if selfErr != nil {
+				return selfErr
 			}
 
 			fmt.Printf("\n✅ Successfully Logged In as: %s (@%s)\n\n", user.FirstName, user.Username)

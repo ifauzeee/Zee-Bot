@@ -6,7 +6,11 @@ import (
 )
 
 const (
-	Divider = "━━━━━━━━━━━━━━━━━━━━━━"
+	Divider      = "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯"
+	HeaderPrefix = "✨"
+	RowPrefix    = "▫️"
+	Arrow        = "➜"
+	Separator    = "┆"
 )
 
 func ToBoldSans(s string) string {
@@ -26,14 +30,19 @@ func ToBoldSans(s string) string {
 	return b.String()
 }
 
-type StyleBuilder struct {
-	title  string
-	icon   string
-	rows   []string
-	footer string
+func (c *Context) EditStatus(icon, text string) error {
+	return c.Edit(fmt.Sprintf("%s %s", icon, ToBoldSans(text)))
 }
 
-func (c *Context) NewStyle(title string, icon string) *StyleBuilder {
+type StyleBuilder struct {
+	title    string
+	icon     string
+	rows     []string
+	sections []string
+	footer   string
+}
+
+func (c *Context) NewStyle(title, icon string) *StyleBuilder {
 	return &StyleBuilder{
 		title: title,
 		icon:  icon,
@@ -41,11 +50,22 @@ func (c *Context) NewStyle(title string, icon string) *StyleBuilder {
 }
 
 func (s *StyleBuilder) AddRow(key string, value interface{}) *StyleBuilder {
-	return s.AddRowWithIcon("▫️", key, value)
+	return s.AddRowWithIcon(RowPrefix, key, value)
 }
 
-func (s *StyleBuilder) AddRowWithIcon(icon string, key string, value interface{}) *StyleBuilder {
-	s.rows = append(s.rows, fmt.Sprintf("%s %-12s : %v", icon, ToBoldSans(key), value))
+func (s *StyleBuilder) AddRowWithIcon(icon, key string, value interface{}) *StyleBuilder {
+	s.rows = append(s.rows, fmt.Sprintf("%s %s %s %v", icon, ToBoldSans(key), Arrow, value))
+	return s
+}
+
+func (s *StyleBuilder) AddSection(name, body string) *StyleBuilder {
+	section := fmt.Sprintf("\n[ %s ]\n\n%s", ToBoldSans(strings.ToUpper(name)), body)
+	s.sections = append(s.sections, section)
+	return s
+}
+
+func (s *StyleBuilder) AddRawRow(text string) *StyleBuilder {
+	s.rows = append(s.rows, text)
 	return s
 }
 
@@ -56,14 +76,22 @@ func (s *StyleBuilder) SetFooter(footer string) *StyleBuilder {
 
 func (s *StyleBuilder) Build() string {
 	var b strings.Builder
+
 	b.WriteString(fmt.Sprintf("%s %s\n", s.icon, ToBoldSans(strings.ToUpper(s.title))))
 	b.WriteString(Divider + "\n")
+
 	for _, row := range s.rows {
 		b.WriteString(row + "\n")
 	}
+
+	for _, section := range s.sections {
+		b.WriteString(section + "\n")
+	}
+
 	b.WriteString(Divider)
 	if s.footer != "" {
 		b.WriteString("\n" + s.footer)
 	}
+
 	return b.String()
 }

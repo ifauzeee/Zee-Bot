@@ -55,8 +55,8 @@ func main() {
 	}
 
 	sessionDir := "session"
-	if err := os.MkdirAll(sessionDir, 0700); err != nil {
-		fmt.Printf("Failed to create session dir: %v\n", err)
+	if mkdirErr := os.MkdirAll(sessionDir, 0700); mkdirErr != nil {
+		fmt.Printf("Failed to create session dir: %v\n", mkdirErr)
 		return
 	}
 	sessionPath := filepath.Join(sessionDir, "session.json")
@@ -81,13 +81,13 @@ func main() {
 	ctx := context.Background()
 
 	err = client.Run(ctx, func(ctx context.Context) error {
-		if err := client.Auth().IfNecessary(ctx, flow); err != nil {
-			return err
+		if authErr := client.Auth().IfNecessary(ctx, flow); authErr != nil {
+			return authErr
 		}
 
-		self, err := client.Self(ctx)
-		if err != nil {
-			return err
+		self, selfErr := client.Self(ctx)
+		if selfErr != nil {
+			return selfErr
 		}
 
 		fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")

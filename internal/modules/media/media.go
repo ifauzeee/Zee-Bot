@@ -17,6 +17,10 @@ import (
 	"go.uber.org/zap"
 )
 
+func init() {
+	handlers.RegisterModule(Register)
+}
+
 func Register(m *handlers.Manager) {
 	m.Register("save", "Save view once or timer media", saveHandler)
 	m.Register("vo", "Alias for save (Get View Once)", saveHandler)
@@ -66,6 +70,11 @@ func deleteCommandMessage(c *handlers.Context) {
 	}
 }
 
+const (
+	jpgExt = ".jpg"
+	pngExt = ".png"
+)
+
 func processMedia(c *handlers.Context, msg *tg.Message, captionPrefix string) error {
 	if msg.Media == nil {
 		return nil
@@ -78,7 +87,9 @@ func processMedia(c *handlers.Context, msg *tg.Message, captionPrefix string) er
 		c.Logger.Error("Download failed", zap.Error(err))
 		return nil
 	}
-	defer os.Remove(path)
+	defer func() {
+		_ = os.Remove(path)
+	}()
 
 	duration := time.Since(startTime).Round(time.Millisecond)
 
@@ -100,7 +111,7 @@ func processMedia(c *handlers.Context, msg *tg.Message, captionPrefix string) er
 	ext := strings.ToLower(filepath.Ext(path))
 	if isVideo {
 		_, sendErr = target.Video(c.Ctx, upload, html.String(nil, caption))
-	} else if ext == ".jpg" || ext == ".jpeg" || ext == ".png" {
+	} else if ext == jpgExt || ext == ".jpeg" || ext == pngExt {
 		_, sendErr = target.UploadedPhoto(c.Ctx, upload, html.String(nil, caption))
 	} else {
 		_, sendErr = target.File(c.Ctx, upload, html.String(nil, caption))
@@ -146,10 +157,11 @@ func getMessageFromLink(c *handlers.Context, link string) (*tg.Message, error) {
 		var channelID int64
 		_, _ = fmt.Sscanf(peerStr, "%d", &channelID)
 
-		dialogs, err := c.Raw.MessagesGetDialogs(c.Ctx, &tg.MessagesGetDialogsRequest{
+		var dialogsErr error
+		dialogs, dialogsErr := c.Raw.MessagesGetDialogs(c.Ctx, &tg.MessagesGetDialogsRequest{
 			Limit: 100,
 		})
-		if err == nil {
+		if dialogsErr == nil {
 			var chats []tg.ChatClass
 			switch d := dialogs.(type) {
 			case *tg.MessagesDialogs:
@@ -167,10 +179,10 @@ func getMessageFromLink(c *handlers.Context, link string) (*tg.Message, error) {
 		}
 
 		if inputPeer == nil {
-			res, err := c.Raw.ChannelsGetChannels(c.Ctx, []tg.InputChannelClass{
+			res, resErr := c.Raw.ChannelsGetChannels(c.Ctx, []tg.InputChannelClass{
 				&tg.InputChannel{ChannelID: channelID},
 			})
-			if err == nil && len(res.GetChats()) > 0 {
+			if resErr == nil && len(res.GetChats()) > 0 {
 				if ch, ok := res.GetChats()[0].(*tg.Channel); ok {
 					inputPeer = &tg.InputPeerChannel{ChannelID: ch.ID, AccessHash: ch.AccessHash}
 				}
@@ -178,14 +190,14 @@ func getMessageFromLink(c *handlers.Context, link string) (*tg.Message, error) {
 		}
 
 		if inputPeer == nil {
-			return nil, fmt.Errorf("could not find private channel with ID %d. Make sure the bot is a member.", channelID)
+			return nil, fmt.Errorf("could not find private channel with ID %d. Make sure the bot is a member", channelID)
 		}
 	} else {
-		resolved, err := c.Raw.ContactsResolveUsername(c.Ctx, &tg.ContactsResolveUsernameRequest{
+		resolved, resolveErr := c.Raw.ContactsResolveUsername(c.Ctx, &tg.ContactsResolveUsernameRequest{
 			Username: peerStr,
 		})
-		if err != nil {
-			return nil, err
+		if resolveErr != nil {
+			return nil, resolveErr
 		}
 
 		if len(resolved.Chats) > 0 {
@@ -200,7 +212,7 @@ func getMessageFromLink(c *handlers.Context, link string) (*tg.Message, error) {
 	}
 
 	var result tg.MessagesMessagesClass
-	if ch, ok := inputPeer.(*tg.InputPeerChannel); ok {
+	if ch, isChannel := inputPeer.(*tg.InputPeerChannel); isChannel {
 		result, err = c.Raw.ChannelsGetMessages(c.Ctx, &tg.ChannelsGetMessagesRequest{
 			Channel: &tg.InputChannel{ChannelID: ch.ChannelID, AccessHash: ch.AccessHash},
 			ID:      []tg.InputMessageClass{&tg.InputMessageID{ID: msgID}},
@@ -250,7 +262,7 @@ func getRepliedMessage(c *handlers.Context) (*tg.Message, error) {
 	var result tg.MessagesMessagesClass
 	var err error
 
-	if inputPeerChannel, ok := c.Peer.(*tg.InputPeerChannel); ok {
+	if inputPeerChannel, isChannel := c.Peer.(*tg.InputPeerChannel); isChannel {
 		inputChannel := &tg.InputChannel{
 			ChannelID:  inputPeerChannel.ChannelID,
 			AccessHash: inputPeerChannel.AccessHash,
@@ -289,11 +301,10 @@ func getRepliedMessage(c *handlers.Context) (*tg.Message, error) {
 	return msg, nil
 }
 
-func downloadMedia(ctx context.Context, api *tg.Client, d *downloader.Downloader, media tg.MessageMediaClass) (string, bool, error) {
+func downloadMedia(ctx context.Context, api *tg.Client, d *downloader.Downloader, media tg.MessageMediaClass) (path string, isVideo bool, err error) {
 	tmpDir := "tmp"
 	_ = os.MkdirAll(tmpDir, 0755)
 
-	isVideo := false
 	var outPath string
 	var location tg.InputFileLocationClass
 
@@ -307,12 +318,13 @@ func downloadMedia(ctx context.Context, api *tg.Client, d *downloader.Downloader
 		var bestSize string
 		var maxW int
 		for _, s := range p.Sizes {
-			if ps, ok := s.(*tg.PhotoSize); ok {
+			switch ps := s.(type) {
+			case *tg.PhotoSize:
 				if ps.W > maxW {
 					maxW = ps.W
 					bestSize = ps.Type
 				}
-			} else if ps, ok := s.(*tg.PhotoSizeProgressive); ok {
+			case *tg.PhotoSizeProgressive:
 				if ps.W > maxW {
 					maxW = ps.W
 					bestSize = ps.Type
@@ -375,7 +387,7 @@ func downloadMedia(ctx context.Context, api *tg.Client, d *downloader.Downloader
 		return "", false, fmt.Errorf("unsupported media type")
 	}
 
-	_, err := d.Download(api, location).ToPath(ctx, outPath)
+	_, err = d.Download(api, location).ToPath(ctx, outPath)
 	if err != nil {
 		return "", false, err
 	}

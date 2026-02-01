@@ -14,10 +14,7 @@ import (
 	"zee-ubot/internal/database"
 	"zee-ubot/internal/handlers"
 	"zee-ubot/internal/middleware"
-	"zee-ubot/internal/modules/admin"
-	"zee-ubot/internal/modules/basic"
-	"zee-ubot/internal/modules/media"
-	"zee-ubot/internal/modules/utility"
+	_ "zee-ubot/internal/modules"
 
 	"github.com/gotd/td/session"
 	"github.com/gotd/td/telegram"
@@ -65,30 +62,29 @@ func main() {
 		logger.Fatal("Failed to load config", zap.Error(err))
 	}
 
-	if err := database.Init(); err != nil {
-		logger.Fatal("Failed to initialize database", zap.Error(err))
+	if dbErr := database.Init(); dbErr != nil {
+		logger.Fatal("Failed to initialize database", zap.Error(dbErr))
 	}
 
 	manager := handlers.NewManager(logger)
-	basic.Register(manager)
-	admin.Register(manager)
-	utility.Register(manager)
-	media.Register(manager)
+	for _, register := range handlers.GetModules() {
+		register(manager)
+	}
 
 	var storage session.Storage
 
 	if cfg.SessionString != "" {
 		logger.Info("Using Session String from Environment")
-		data, err := base64.StdEncoding.DecodeString(cfg.SessionString)
-		if err != nil {
-			logger.Fatal("Invalid Session String", zap.Error(err))
+		data, decodeErr := base64.StdEncoding.DecodeString(cfg.SessionString)
+		if decodeErr != nil {
+			logger.Fatal("Invalid Session String", zap.Error(decodeErr))
 		}
 
 		storage = &StaticMemoryStorage{Data: data}
 	} else {
 		sessionDir := "session"
-		if err := os.MkdirAll(sessionDir, 0700); err != nil {
-			logger.Fatal("Failed to create session dir", zap.Error(err))
+		if mkdirErr := os.MkdirAll(sessionDir, 0700); mkdirErr != nil {
+			logger.Fatal("Failed to create session dir", zap.Error(mkdirErr))
 		}
 		sessionPath := filepath.Join(sessionDir, "session.json")
 		storage = &telegram.FileSessionStorage{Path: sessionPath}
@@ -143,13 +139,13 @@ func main() {
 	logger.Info("Starting Zee-Ubot...")
 
 	err = client.Run(ctx, func(ctx context.Context) error {
-		if err := client.Auth().IfNecessary(ctx, flow); err != nil {
-			return err
+		if authErr := client.Auth().IfNecessary(ctx, flow); authErr != nil {
+			return authErr
 		}
 
-		self, err := client.Self(ctx)
-		if err != nil {
-			return err
+		self, selfErr := client.Self(ctx)
+		if selfErr != nil {
+			return selfErr
 		}
 		logger.Info("Logged in!",
 			zap.String("first_name", self.FirstName),

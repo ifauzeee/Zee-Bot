@@ -4,13 +4,21 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
-	"zee-ubot/internal/database"
 
 	"github.com/gotd/td/telegram/message"
 	"github.com/gotd/td/tg"
 	"go.uber.org/zap"
 )
+
+var moduleRegistry []func(*Manager)
+
+func RegisterModule(f func(*Manager)) {
+	moduleRegistry = append(moduleRegistry, f)
+}
+
+func GetModules() []func(*Manager) {
+	return moduleRegistry
+}
 
 type HandlerFunc func(c *Context) error
 
@@ -20,8 +28,11 @@ type Command struct {
 	Handler     HandlerFunc
 }
 
+type HookFunc func(c *Context, update tg.UpdateClass) error
+
 type Manager struct {
 	Commands map[string]Command
+	Hooks    map[string][]HookFunc
 	Logger   *zap.Logger
 	SelfID   int64
 }
@@ -49,6 +60,7 @@ func (c *Context) Reply(text string) error {
 func NewManager(logger *zap.Logger) *Manager {
 	return &Manager{
 		Commands: make(map[string]Command),
+		Hooks:    make(map[string][]HookFunc),
 		Logger:   logger,
 		SelfID:   0,
 	}
@@ -60,6 +72,10 @@ func (m *Manager) Register(name, description string, handler HandlerFunc) {
 		Description: description,
 		Handler:     handler,
 	}
+}
+
+func (m *Manager) RegisterHook(event string, handler HookFunc) {
+	m.Hooks[event] = append(m.Hooks[event], handler)
 }
 
 func (m *Manager) HandleNewMessage(ctx context.Context, sender *message.Sender, raw *tg.Client, update tg.UpdateClass, entities tg.Entities) error {
@@ -74,91 +90,62 @@ func (m *Manager) HandleNewMessage(ctx context.Context, sender *message.Sender, 
 	}
 
 	if !ok || msg == nil {
-		return nil
+		return m.HandleUpdate(ctx, sender, raw, update, entities)
+	}
+
+	if err := m.HandleUpdate(ctx, sender, raw, update, entities); err != nil {
+		return err
 	}
 
 	if msg.Out {
-		isAfkCmd := strings.HasPrefix(msg.Message, ".afk") || strings.HasPrefix(msg.Message, "!afk")
-		isAfkStatus := strings.Contains(msg.Message, "💤") || strings.Contains(msg.Message, "✅")
-
-		if !isAfkCmd && !isAfkStatus {
-			m.checkAndDisableAFK(ctx, sender, raw, msg, entities)
-		}
-
 		return m.processMessage(ctx, sender, raw, msg, entities)
 	}
 
-	return m.handleIncomingAFK(ctx, sender, raw, msg, entities)
+	return nil
+
 }
 
-func (m *Manager) checkAndDisableAFK(ctx context.Context, sender *message.Sender, raw *tg.Client, msg *tg.Message, entities tg.Entities) {
-	status, _ := database.GetKV("afk_status")
-	if status != "" {
-		_ = database.DeleteKV("afk_status")
-		parts := strings.SplitN(status, "|", 2)
-		if len(parts) == 2 {
-			startTimeStr := parts[0]
-			var startTime int64
-			_, _ = fmt.Sscanf(startTimeStr, "%d", &startTime)
-			duration := time.Since(time.Unix(startTime, 0)).Round(time.Second)
+func (m *Manager) HandleUpdate(ctx context.Context, sender *message.Sender, raw *tg.Client, update tg.UpdateClass, entities tg.Entities) error {
+	var peer tg.InputPeerClass
+	var msg *tg.Message
 
-			peer, _ := m.resolvePeer(ctx, raw, msg.PeerID, entities)
-			if peer != nil {
-				style := (&Context{Ctx: ctx, Sender: sender, Peer: peer, Raw: raw}).NewStyle("𝗦𝗔𝗬𝗔 𝗞𝗘𝗠𝗕𝗔𝗟𝗜!", "✨")
-				style.AddRowWithIcon("⏰", "Lama AFK", duration)
-				_, _ = sender.To(peer).Text(ctx, style.Build())
-			}
+	switch u := update.(type) {
+	case *tg.UpdateNewMessage:
+		if messageVal, ok := u.Message.(*tg.Message); ok {
+			msg = messageVal
+			peer, _ = m.resolvePeer(ctx, raw, msg.PeerID, entities)
+		}
+	case *tg.UpdateNewChannelMessage:
+		if messageVal, ok := u.Message.(*tg.Message); ok {
+			msg = messageVal
+			peer, _ = m.resolvePeer(ctx, raw, msg.PeerID, entities)
 		}
 	}
-}
 
-func (m *Manager) handleIncomingAFK(ctx context.Context, sender *message.Sender, raw *tg.Client, msg *tg.Message, entities tg.Entities) error {
-	status, _ := database.GetKV("afk_status")
-	if status == "" {
-		return nil
+	c := &Context{
+		Ctx:    ctx,
+		Sender: sender,
+		Logger: m.Logger,
+		Peer:   peer,
+		Raw:    raw,
+		Msg:    msg,
 	}
 
-	parts := strings.SplitN(status, "|", 2)
-	if len(parts) < 2 {
-		return nil
-	}
-	startTimeStr, reason := parts[0], parts[1]
-
-	var startTime int64
-	_, _ = fmt.Sscanf(startTimeStr, "%d", &startTime)
-	duration := time.Since(time.Unix(startTime, 0)).Round(time.Second)
-
-	isPM := false
-	if _, ok := msg.PeerID.(*tg.PeerUser); ok {
-		isPM = true
-	}
-
-	isMentioned := false
-	if isPM {
-		isMentioned = true
-	} else {
-		isMentioned = msg.Mentioned
-	}
-
-	if isMentioned {
-		m.Logger.Info("AFK: Mentioned or PM received, sending reply",
-			zap.Bool("isPM", isPM),
-			zap.String("reason", reason))
-
-		peer, err := m.resolvePeer(ctx, raw, msg.PeerID, entities)
-		if err != nil {
-			m.Logger.Warn("AFK: Could not resolve peer for reply", zap.Error(err))
-			return nil
+	for _, h := range m.Hooks["all"] {
+		if err := h(c, update); err != nil {
+			m.Logger.Error("Update hook failed", zap.Error(err))
 		}
+	}
 
-		style := (&Context{Ctx: ctx, Sender: sender, Peer: peer, Raw: raw}).NewStyle("𝗦𝗘𝗗𝗔𝗡𝗚 𝗔𝗙𝗞", "💤")
-		style.AddRowWithIcon("📝", "Alasan", reason)
-		style.AddRowWithIcon("⏳", "Durasi", duration)
-		_, err = sender.To(peer).Reply(msg.ID).Text(ctx, style.Build())
-		if err != nil {
-			m.Logger.Error("AFK: Failed to send reply", zap.Error(err))
+	switch u := update.(type) {
+	case *tg.UpdateChatParticipants:
+		for _, h := range m.Hooks["chat_participants"] {
+			_ = h(c, u)
 		}
-		return err
+	case *tg.UpdateChannel:
+		for _, h := range m.Hooks["channel"] {
+			_ = h(c, u)
+		}
 	}
 
 	return nil
@@ -200,7 +187,17 @@ func (m *Manager) processMessage(ctx context.Context, sender *message.Sender, ra
 			Raw:    raw,
 		}
 
-		if err := cmd.Handler(c); err != nil {
+		safeExec := func() (err error) {
+			defer func() {
+				if r := recover(); r != nil {
+					err = fmt.Errorf("panic recovered: %v", r)
+					m.Logger.Error("Panic in command handler", zap.String("command", cmdName), zap.Any("panic", r))
+				}
+			}()
+			return cmd.Handler(c)
+		}
+
+		if err := safeExec(); err != nil {
 			m.Logger.Error("Command execution failed", zap.Error(err))
 		}
 	}

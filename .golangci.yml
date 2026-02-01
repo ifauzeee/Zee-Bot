@@ -1,0 +1,73 @@
+run:
+  timeout: 5m
+  tests: false
+
+linters-settings:
+  revive:
+    rules:
+      - name: exported
+        disabled: true
+      - name: package-comments
+        disabled: true
+  stylecheck:
+    checks:
+      - "all"
+      - "-ST1000"
+      - "-ST1020"
+      - "-ST1021"
+      - "-ST1022"
+  govet:
+    enable:
+      - shadow
+  gocyclo:
+    min-complexity: 30 # Increased to accommodate legacy media logic
+  maligned:
+    suggest-new: true
+  dupl:
+    threshold: 100
+  goconst:
+    min-len: 2
+    min-occurrences: 2
+  misspell:
+    locale: US
+  lll:
+    line-length: 140
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+      - performance
+      - style
+    disabled-checks:
+      - wrapperFunc
+      - ifElseChain
+      - octalLiteral
+
+linters:
+  disable-all: true
+  enable:
+    - dogsled
+    - errcheck
+    - goconst
+    - gocritic
+    - gocyclo
+    - gofmt
+    - goimports
+    - gosimple
+    - govet
+    - ineffassign
+    - misspell
+    - nakedret
+    - staticcheck
+    - stylecheck
+    - typecheck
+    - unconvert
+    - unparam
+    - unused
+    - revive
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0
